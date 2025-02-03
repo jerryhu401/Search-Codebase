@@ -1,0 +1,93 @@
+import heapq
+import random
+import matplotlib.pyplot as plt
+import numpy as np
+
+def imha_star(grid, start, goal, heuristics, w1=1.5, w2=1.5):
+    """
+    Independent Multi-Heuristic A*
+    Each heuristic maintains its own independent search with its own g-values.
+    """
+    open_lists = [[] for _ in range(len(heuristics) + 1)]  # n+1 priority queues
+    came_from = [{} for _ in range(len(heuristics) + 1)]
+    g_scores = [{start: 0} for _ in range(len(heuristics) + 1)]
+    open_sets = [set([start]) for _ in range(len(heuristics) + 1)]
+    closed_set = set()
+    
+    for i in range(len(heuristics) + 1):
+        heapq.heappush(open_lists[i], (heuristics[i](start, goal) * w1, start))
+    
+    while open_lists[0]:
+        for i in range(1, len(heuristics) + 1):
+            if open_lists[i] and open_lists[i][0][0] <= w2 * open_lists[0][0][0]:
+                _, current = heapq.heappop(open_lists[i])
+                open_sets[i].remove(current)
+            else:
+                _, current = heapq.heappop(open_lists[0])
+                open_sets[0].remove(current)
+                closed_set.add(current)
+            
+            if current == goal:
+                return reconstruct_path(came_from[i], start, goal), closed_set
+            
+            for neighbor in grid.expand_node(current):
+                g = g_scores[i].get(current, float('inf')) + grid.grid[neighbor]
+                
+                if neighbor not in g_scores[i] or g < g_scores[i][neighbor]:
+                    g_scores[i][neighbor] = g
+                    f = g + heuristics[i](neighbor, goal) * w1
+                    heapq.heappush(open_lists[i], (f, neighbor))
+                    open_sets[i].add(neighbor)
+                    came_from[i][neighbor] = current
+    
+    return None, closed_set
+
+def smha_star(grid, start, goal, heuristics, w1=1.5, w2=1.5):
+    """
+    Shared Multi-Heuristic A*
+    All searches share the same g-values, improving efficiency in heuristic depression regions.
+    """
+    open_lists = [[] for _ in range(len(heuristics) + 1)]
+    came_from = {}
+    g_score = {start: 0}
+    open_set = set([start])
+    closed_set = set()
+    
+    for i in range(len(heuristics) + 1):
+        heapq.heappush(open_lists[i], (heuristics[i](start, goal) * w1, start))
+    
+    while open_lists[0]:
+        for i in range(1, len(heuristics) + 1):
+            if open_lists[i] and open_lists[i][0][0] <= w2 * open_lists[0][0][0]:
+                _, current = heapq.heappop(open_lists[i])
+            else:
+                _, current = heapq.heappop(open_lists[0])
+                closed_set.add(current)
+            
+            if current == goal:
+                return reconstruct_path(came_from, start, goal), closed_set
+            
+            for neighbor in grid.expand_node(current):
+                g = g_score.get(current, float('inf')) + grid.grid[neighbor]
+                
+                if neighbor not in g_score or g < g_score[neighbor]:
+                    g_score[neighbor] = g
+                    f_values = [g + heuristics[i](neighbor, goal) * w1 for i in range(len(heuristics) + 1)]
+                    
+                    for i in range(len(heuristics) + 1):
+                        heapq.heappush(open_lists[i], (f_values[i], neighbor))
+                    open_set.add(neighbor)
+                    came_from[neighbor] = current
+    
+    return None, closed_set
+
+def reconstruct_path(came_from, start, goal):
+    """Reconstructs the path from start to goal."""
+    path = []
+    current = goal
+    while current in came_from:
+        path.append(current)
+        current = came_from[current]
+    path.append(start)
+    path.reverse()
+    return path
