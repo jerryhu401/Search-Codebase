@@ -24,6 +24,20 @@ class Node:
     def __ne__(self, other):
         return self.state != other.state
     
+    def expand_node(self, grid):
+        x, y = self.state
+        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+        if grid.connectivity == 8:
+            directions.extend([(-1, -1), (-1, 1), (1, -1), (1, 1)]) 
+
+        result = []
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            if grid.is_traversable(nx, ny):
+                result.append(Node((nx, ny), self, self.g_score + grid.grid[x][y]))
+
+        return result
+    
 
 class PQ:
     def __init__(self):
@@ -68,20 +82,6 @@ class Gridworld:
 
     def is_traversable(self, x, y):
         return self.is_within_bounds(x, y) and self.grid[x, y] != -1
-
-    def expand_node(self, node):
-        x, y = node.state
-        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-        if self.connectivity == 8:
-            directions.extend([(-1, -1), (-1, 1), (1, -1), (1, 1)]) 
-
-        result = []
-        for dx, dy in directions:
-            nx, ny = x + dx, y + dy
-            if self.is_traversable(nx, ny):
-                result.append(Node((nx, ny), node, node.g_score + grid.grid[x][y]))
-
-        return result
 
     def draw_grid(self, path=None, start=None, goal=None, open_list=None, closed_list=None):
         fig, ax = plt.subplots(figsize=(10, 10))
@@ -165,8 +165,7 @@ def potential_search(grid, start, goal, budget, cost_model, h):
             path.reverse()
             return path, open_set, closed_set
 
-        for neighbor in grid.expand_node(current_node):
-            #compute g_score in expand_node
+        for neighbor in current_node.expand_node(grid):
             g_score = neighbor.g_score
 
             if neighbor.state not in closed_set:
