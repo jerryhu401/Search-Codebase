@@ -61,12 +61,7 @@ class Gridworld:
         self.height = height
         self.grid = np.random.randint(1, max_cost + 1, (height, width))
         self.connectivity = connectivity
-
-        # REPLACE W NP
-        for i in range(height):
-            for j in range(width):
-                if random.random() < obstacle_prob:
-                    self.grid[i, j] = -1  # -1 represents an obstacle
+        self.grid[np.random.rand(height, width) < obstacle_prob] = -1  
 
     def is_within_bounds(self, x, y):
         return 0 <= x < self.height and 0 <= y < self.width
@@ -189,7 +184,7 @@ if __name__ == "__main__":
 
     start = Node((0, 0),None,0)
     goal = (height - 1, width - 1)
-    budget = 200
+    budget = 80
 
     while not grid.is_traversable(*(start.state)) or not grid.is_traversable(*goal):
         grid = Gridworld(width, height, 0.3, 10, connectivity=8)
@@ -202,3 +197,4 @@ if __name__ == "__main__":
         grid.draw_grid(path=path, start=start.state, goal=goal, open_list=open_set, closed_list=closed_set)
     else:
         print("No path found")
+        grid.draw_grid(path=path, start=start.state, goal=goal, open_list=open_set, closed_list=closed_set)
