@@ -8,6 +8,53 @@ import math
 #MAKE node class to replace cost so far and came from.
 #Should have: state = (x, y), parent_node, cost_so_far
 #hash, str, comparison
+
+class Node:
+    def __init__(self, state, parent, g_score):
+        self.state = state
+        self.parent = parent
+        self.g_score = g_score
+
+    def __hash__(self):
+        return hash(self.state)
+
+    def __eq__(self, other):
+        return self.state == other.state
+
+    def __ne__(self, other):
+        return self.state != other.state
+    
+
+class PQ:
+    def __init__(self):
+        self.heap = []
+        self.count = 0
+
+    def push(self, item, priority):
+        entry = (priority, self.count, item)
+        heapq.heappush(self.heap, entry)
+        self.count += 1
+
+    def pop(self):
+        (_, _, item) = heapq.heappop(self.heap)
+        return item
+
+    def isEmpty(self):
+        return len(self.heap) == 0
+
+    def update(self, item, priority):
+        for index, (p, c, i) in enumerate(self.heap):
+            if i == item:
+                if p <= priority:
+                    break
+                del self.heap[index]
+                self.heap.append((priority, c, item))
+                heapq.heapify(self.heap)
+                break
+        else:
+            PQ.push(self, item, priority)
+
+
 class Gridworld:
     def __init__(self, width, height, obstacle_prob, max_cost, connectivity):
         self.width = width
@@ -28,7 +75,7 @@ class Gridworld:
         return self.is_within_bounds(x, y) and self.grid[x, y] != -1
 
     def expand_node(self, node):
-        x, y = node
+        x, y = node.state
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
         if self.connectivity == 8:
             directions.extend([(-1, -1), (-1, 1), (1, -1), (1, 1)]) 
@@ -37,7 +84,7 @@ class Gridworld:
         for dx, dy in directions:
             nx, ny = x + dx, y + dy
             if self.is_traversable(nx, ny):
-                result.append((nx, ny))
+                result.append(Node((nx, ny), node, node.g_score + grid.grid[x][y]))
 
         return result
 
@@ -104,41 +151,34 @@ def potential_search(grid, start, goal, budget, cost_model, h):
     """
     Potential Search with support for different cost models: additive, linear relative, and general invertible.
     """
-    open_list = []
-    heapq.heappush(open_list, (0, start))
-    came_from = {}
-    cost_so_far = {start: 0}
-    open_set = {start}
+    open_list = PQ()
+    open_list.push((start), 0)
+    open_set = {start.state}
     closed_set = set()
 
     while open_list:
-        current_potential, current_node = heapq.heappop(open_list)
-        open_set.remove(current_node)
-        closed_set.add(current_node)
+        current_node = open_list.pop()
+        open_set.remove(current_node.state)
+        closed_set.add(current_node.state)
 
-        if current_node == goal:
+        if current_node.state == goal:
             path = []
-            while current_node in came_from:
-                path.append(current_node)
-                current_node = came_from[current_node]
-            path.append(start)
+            while current_node != start:
+                path.append(current_node.state)
+                current_node = current_node.parent
+            path.append(start.state)
             path.reverse()
             return path, open_set, closed_set
 
         for neighbor in grid.expand_node(current_node):
             #compute g_score in expand_node
-            g_score = cost_so_far[current_node] + grid.grid[neighbor]
+            g_score = neighbor.g_score
 
-            if g_score <= budget and (neighbor not in cost_so_far or g_score < cost_so_far[neighbor]):
-                cost_so_far[neighbor] = g_score
-                h_score = h(neighbor, goal)
-
+            if neighbor.state not in closed_set:
+                h_score = h(neighbor.state, goal)
                 potential = cost_model(budget, h_score, g_score)
-
-                if neighbor not in open_set:
-                    heapq.heappush(open_list, (potential, neighbor))
-                    open_set.add(neighbor)
-                came_from[neighbor] = current_node
+                open_list.update((neighbor), potential)
+                open_set.add(neighbor.state)
 
     return None, open_set, closed_set  # No path found
 
@@ -147,11 +187,11 @@ if __name__ == "__main__":
     width, height = 20, 20
     grid = Gridworld(width, height, 0.3, 10, connectivity=8)
 
-    start = (0, 0)
+    start = Node((0, 0),None,0)
     goal = (height - 1, width - 1)
     budget = 200
 
-    while not grid.is_traversable(*start) or not grid.is_traversable(*goal):
+    while not grid.is_traversable(*(start.state)) or not grid.is_traversable(*goal):
         grid = Gridworld(width, height, 0.3, 10, connectivity=8)
 
     cost_model = "linear_relative" 
@@ -159,6 +199,6 @@ if __name__ == "__main__":
 
     if path:
         print("Path found:", path)
-        grid.draw_grid(path=path, start=start, goal=goal, open_list=open_set, closed_list=closed_set)
+        grid.draw_grid(path=path, start=start.state, goal=goal, open_list=open_set, closed_list=closed_set)
     else:
         print("No path found")
