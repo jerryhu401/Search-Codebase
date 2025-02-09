@@ -4,11 +4,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 
-#type annotate
-#MAKE node class to replace cost so far and came from.
-#Should have: state = (x, y), parent_node, cost_so_far
-#hash, str, comparison
-
 class Node:
     def __init__(self, state, parent, g_score):
         self.state = state
@@ -151,7 +146,7 @@ def potential_search(grid, start, goal, budget, cost_model, h):
     open_set = {start.state}
     closed_set = set()
 
-    while open_list:
+    while not open_list.isEmpty():
         current_node = open_list.pop()
         open_set.remove(current_node.state)
         closed_set.add(current_node.state)
