@@ -74,7 +74,7 @@ class Gridworld:
 
     def is_within_bounds(self, x, y):
         return 0 <= x < self.height and 0 <= y < self.width
-
+    
     def is_traversable(self, x, y):
         return self.is_within_bounds(x, y) and self.grid[x, y] != -1
 
@@ -121,6 +121,30 @@ class Gridworld:
         ax.axis('off')
         plt.show()
 
+    def path_exists(self, start, goal):
+        open_list = PQ()
+        open_list.push((start), 1)
+        open_set = {start.state}
+        closed_set = set()
+
+        while not open_list.isEmpty():
+            current_node = open_list.pop()
+            open_set.remove(current_node.state)
+            closed_set.add(current_node.state)
+
+            if current_node.state == goal:
+                return True
+
+            for neighbor in current_node.expand_node(self):
+                g_score = neighbor.g_score
+
+                if neighbor.state not in closed_set:
+                    h_score = 1
+                    open_list.update((neighbor), h_score)
+                    open_set.add(neighbor.state)
+
+        return False
+
 def heuristic_manhattan(node, goal):
     return abs(node[0] - goal[0]) + abs(node[1] - goal[1])
 
@@ -154,7 +178,6 @@ def imha_star(grid, start, goal, heuristics, w1, w2):
                 open_sets[i].remove(current.state)
                 closed_set[i].add(current.state)
                 if current.state == goal:
-                    print(i)
                     return reconstruct_path(current, start, goal), open_sets[i], closed_set[i]
                 for neighbor in current.expand_node(grid):
                     g = neighbor.g_score
@@ -168,7 +191,6 @@ def imha_star(grid, start, goal, heuristics, w1, w2):
                 open_sets[0].remove(current.state)
                 closed_set[0].add(current.state)
                 if current.state == goal:
-                    print(i)
                     return reconstruct_path(current, start.state, goal), open_sets[0], closed_set[0]
                 for neighbor in current.expand_node(grid):
                     g = neighbor.g_score
@@ -181,43 +203,52 @@ def imha_star(grid, start, goal, heuristics, w1, w2):
     return None, open_sets[0], closed_set[0]
 
 def smha_star(grid, start, goal, heuristics, w1, w2):
-    """
-    Shared Multi-Heuristic A*
-    All searches share the same g-values, improving efficiency in heuristic depression regions.
-    """
-    open_lists = [[] for _ in range(len(heuristics) + 1)]
-    came_from = {}
-    g_score = {start: 0}
-    open_set = set([start])
-    closed_set = set()
+    open = [PQ() for _ in range(len(heuristics))]  # n+1 priority queues
+    open_sets = [set([start.state]) for _ in range(len(heuristics))]
+    closed_anchor = set()
+    closed_inad = set()
     
     for i in range(len(heuristics)):
-        heapq.heappush(open_lists[i], (heuristics[i](start, goal) * w1, start))
+        open[i].push(start, heuristics[i](start.state, goal) * w1)
     
-    while open_lists[0]:
+    while not open[0].isEmpty():
         for i in range(1, len(heuristics)):
-            if open_lists[i] and open_lists[i][0][0] <= w2 * open_lists[0][0][0]:
-                _, current = heapq.heappop(open_lists[i])
+            if not open[i].isEmpty() and open[i].peek()[0] <= w2 * open[0].peek()[0]:
+                current = open[i].pop()
+                open_sets[i].remove(current.state)
+                closed_inad.add(current.state)
+                if current.state == goal:
+                    return reconstruct_path(current, start, goal), open_sets[i], closed_inad
+                for neighbor in current.expand_node(grid):
+                    g = neighbor.g_score
+                    if neighbor.state not in closed_anchor:
+                        h_score = heuristics[i](neighbor.state, goal)
+                        f = h_score + g
+                        open[0].update((neighbor), f)
+                        open_sets[0].add(neighbor.state)
+                        if neighbor.state not in closed_inad:
+                            for i in range(1, len(heuristics)):
+                                open[i].update((neighbor), f)
+                                open_sets[i].add(neighbor.state)
             else:
-                _, current = heapq.heappop(open_lists[0])
-                closed_set.add(current)
-            
-            if current == goal:
-                return reconstruct_path(came_from, start, goal), closed_set
-            
-            for neighbor in grid.expand_node(current):
-                g = g_score.get(current, float('inf')) + grid.grid[neighbor]
-                
-                if neighbor not in g_score or g < g_score[neighbor]:
-                    g_score[neighbor] = g
-                    f_values = [g + heuristics[i](neighbor, goal) * w1 for i in range(len(heuristics))]
-                    
-                    for i in range(len(heuristics)):
-                        heapq.heappush(open_lists[i], (f_values[i], neighbor))
-                    open_set.add(neighbor)
-                    came_from[neighbor] = current
+                current = open[0].pop()
+                open_sets[0].remove(current.state)
+                closed_anchor.add(current.state)
+                if current.state == goal:
+                    return reconstruct_path(current, start.state, goal), open_sets[0], closed_anchor
+                for neighbor in current.expand_node(grid):
+                    g = neighbor.g_score
+                    if neighbor.state not in closed_anchor:
+                        h_score = heuristics[i](neighbor.state, goal)
+                        f = h_score + g
+                        open[0].update((neighbor), f)
+                        open_sets[0].add(neighbor.state)
+                        if neighbor.state not in closed_inad:
+                            for i in range(1, len(heuristics)):
+                                open[i].update((neighbor), f)
+                                open_sets[i].add(neighbor.state)
     
-    return None, open_set[0], closed_set[0]
+    return None, open_sets[0], closed_anchor
 
 def reconstruct_path(current, start, goal):
     """Reconstructs the path from start to goal."""
@@ -231,12 +262,15 @@ def reconstruct_path(current, start, goal):
 
 def run_search():
     width, height = 20, 20
-    grid = Gridworld(width, height, 0.3, 10, connectivity=8)
     start = Node((0, 0), None, 0)
+    grid = Gridworld(width, height, 0.3, 10, connectivity=8)
     goal = (height - 1, width - 1)
     heuristics = [heuristic_manhattan, heuristic_euclidean, heuristic_chebyshev, heuristic_octile]
+
+    while not grid.path_exists(start, goal):
+        grid = Gridworld(width, height, 0.3, 10, connectivity=8)
     
-    path, open_set, closed_set = imha_star(grid, start, goal, heuristics, 3, 3)
+    path, open_set, closed_set = smha_star(grid, start, goal, heuristics, 3, 3)
     if path:
         print("Path found:", path)
         grid.draw_grid(path=path, start=start.state, goal=goal, open_list=open_set, closed_list=closed_set)
