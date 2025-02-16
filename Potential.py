@@ -52,6 +52,8 @@ class PQ:
         return len(self.heap) == 0
 
     def update(self, item, priority):
+        #too expensive, use dictionary to find index instead of looping
+        #alternative: always push
         for index, (p, c, i) in enumerate(self.heap):
             if i == item:
                 if p <= priority:
@@ -121,6 +123,29 @@ class Gridworld:
         ax.axis('off')
         plt.show()
 
+    def path_exists(self, start, goal):
+        open_list = PQ()
+        open_list.push((start), 1)
+        open_set = {start.state}
+        closed_set = set()
+
+        while not open_list.isEmpty():
+            current_node = open_list.pop()
+            open_set.remove(current_node.state)
+            closed_set.add(current_node.state)
+
+            if current_node.state == goal:
+                return True
+
+            for neighbor in current_node.expand_node(self):
+
+                if neighbor.state not in closed_set:
+                    h_score = 1
+                    open_list.update((neighbor), h_score)
+                    open_set.add(neighbor.state)
+
+        return False
+
 def heuristic_manhattan(node, goal):
     return abs(node[0] - goal[0]) + abs(node[1] - goal[1])
 
@@ -180,7 +205,7 @@ if __name__ == "__main__":
     goal = (height - 1, width - 1)
     budget = 80
 
-    while not grid.is_traversable(*(start.state)) or not grid.is_traversable(*goal):
+    while not grid.path_exists(start, goal):
         grid = Gridworld(width, height, 0.3, 10, connectivity=8)
 
     cost_model = "linear_relative" 
